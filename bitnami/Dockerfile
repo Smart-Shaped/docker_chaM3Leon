@@ -11,7 +11,7 @@ ENV HOME="/" \
     OS_NAME="linux" \
     PATH="/opt/bitnami/java/bin:/opt/bitnami/spark/bin:/opt/bitnami/spark/sbin:$PATH"
 
-COPY ./bitnami/prebuildfs /
+COPY ./prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
 RUN install_packages ca-certificates curl libbz2-1.0 libcom-err2 libcrypt1 libffi8 libgcc-s1 libgssapi-krb5-2 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 liblzma5 libncursesw6 libnsl2 libreadline8 libsqlite3-0 libssl3 libstdc++6 libtinfo6 libtirpc3 procps zlib1g
@@ -45,7 +45,8 @@ RUN chmod g+rwX /opt/bitnami
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
 RUN mkdir /.local && chmod g+rwX /.local
 
-COPY ./bitnami/rootfs /
+COPY ./rootfs /
+RUN chmod 777 /opt/bitnami/scripts/spark-env.sh
 RUN /opt/bitnami/scripts/spark/postunpack.sh
 RUN /opt/bitnami/scripts/java/postunpack.sh
 ENV APP_VERSION="3.5.1" \
@@ -61,7 +62,7 @@ ENV APP_VERSION="3.5.1" \
 ENV CUPY_CACHE_DIR /tmp/cupy_cache
 
 # libraries for conda env
-COPY ./bitnami/requirements.txt requirements.txt
+COPY ./requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
 WORKDIR /opt/bitnami/spark

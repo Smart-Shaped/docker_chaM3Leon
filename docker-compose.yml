@@ -26,10 +26,14 @@ services:
       - hadoop_datanode:/hadoop/dfs/data
 
   resourcemanager:
-    image: apache/hadoop:3.3.6
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile_nodemanager
     hostname: resourcemanager
     command: ["yarn", "resourcemanager"]
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     ports:
       - 8088:8088
     depends_on:
@@ -37,21 +41,69 @@ services:
       - datanode
     env_file:
       - ./hadoop.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia
+    shm_size: 1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      stack:
+        soft: 67108864
+        hard: 67108864
+    stdin_open: true
+    tty: true
+    pull_policy: always
 
   nodemanager:
-    image: apache/hadoop:3.3.6
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile_nodemanager
     command: ["yarn", "nodemanager"]
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /run/docker.sock:/var/run/docker.sock
     depends_on:
       - namenode
       - datanode
       - resourcemanager
     env_file:
       - ./hadoop.env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia
+    shm_size: 1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      stack:
+        soft: 67108864
+        hard: 67108864
+    stdin_open: true
+    tty: true
+    pull_policy: always
+    
 
   spark-master:
     build:
-      dockerfile: ./bitnami/Dockerfile
+      context: ./bitnami
+      dockerfile: Dockerfile
     environment:
       - SPARK_MODE=master
       - SPARK_USER=spark
@@ -87,7 +139,8 @@ services:
 
   spark-worker:
     build:
-      dockerfile: ./bitnami/Dockerfile
+      context: ./bitnami
+      dockerfile: Dockerfile
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077

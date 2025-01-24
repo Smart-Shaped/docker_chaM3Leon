@@ -1,0 +1,88 @@
+FROM apache/hadoop-runner:jdk11-u2204
+ARG HADOOP_URL=https://dlcdn.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+USER root
+
+RUN sudo usermod -aG hadoop root
+
+COPY envtoconf.py /opt/envtoconf.py
+RUN chmod a+x /opt/envtoconf.py
+
+COPY starter.sh /opt/starter.sh
+RUN chmod a+x /opt/starter.sh
+
+WORKDIR /opt
+
+RUN sudo rm -rf /opt/hadoop && curl -LSs -o hadoop.tar.gz $HADOOP_URL && tar zxf hadoop.tar.gz && rm hadoop.tar.gz && mv hadoop* hadoop && rm -rf /opt/hadoop/share/doc
+WORKDIR /opt/hadoop
+ADD log4j.properties /opt/hadoop/etc/hadoop/log4j.properties
+#RUN sudo chown -R hadoop:users /opt/hadoop/etc/hadoop/*
+RUN sudo chmod 775 -R /opt/hadoop/etc/hadoop/*
+RUN sudo chown -R root:hadoop /opt/hadoop
+ENV HADOOP_CONF_DIR /opt/hadoop/etc/hadoop
+
+#RUN id -u spark &>/dev/null || useradd spark -G hadoop
+RUN useradd spark -G hadoop
+
+RUN apt update -y && \
+    apt upgrade -y && \
+    apt install software-properties-common -y && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt update -y && \
+    apt install python3.12 -y && \
+    python3.12 --version && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
+    pip3.12 -V && \
+    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
+    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 2 && \
+    python3 -m pip install --upgrade pip setuptools wheel && \
+    apt clean
+
+COPY hadoop_requirements.txt hadoop_requirements.txt
+RUN pip3 install -r hadoop_requirements.txt
+
+COPY ./hadoop/container-executor.cfg /opt/hadoop/etc/hadoop/container-executor.cfg
+RUN sudo chgrp hadoop /opt/hadoop/etc/hadoop/container-executor.cfg
+RUN sudo chmod 644 /opt/hadoop/etc/hadoop/container-executor.cfg
+RUN sudo chgrp hadoop /opt/hadoop/bin/container-executor
+RUN sudo chmod 6050 /opt/hadoop/bin/container-executor
+
+WORKDIR /usr/lib/x86_64-linux-gnu
+
+RUN sudo wget https://debian.mirror.ac.za/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0%2Bdeb11u1_amd64.deb
+RUN sudo dpkg -i libssl1.1_1.1.1w-0+deb11u1_amd64.deb
+
+#RUN sudo chown -R hadoop:users /opt/hadoop/etc/hadoop/*
+
+# Update and install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add NVIDIA driver repository
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \
+    && dpkg -i cuda-keyring_1.0-1_all.deb \
+    && apt-get update
+
+# Install NVIDIA GPU drivers
+RUN apt-get install -y --no-install-recommends nvidia-driver-560 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /usr/lib/spark/scripts/gpu/
+RUN cd /usr/lib/spark/scripts/gpu/
+RUN wget https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh
+RUN chmod a+rwx -R /usr/lib/spark/scripts/gpu/
+
+RUN apt-get update && \
+    apt-get install -y docker.io
+    
+WORKDIR /opt/hadoop
+#USER hadoop
+#COPY ./hadoop/resource-types.xml /opt/hadoop/etc/hadoop/resource-types.xml
+
+COPY ./cgroup.sh cgroup.sh
+RUN chmod a+x ./cgroup.sh
+#RUN ./cgroup.sh
+
+ENTRYPOINT ["/usr/local/bin/dumb-init", "--", "/opt/starter.sh"]
