@@ -1,5 +1,5 @@
 *.sh text eol=lf
 *.py text eol=lf
 
-/docker_chaM3Leon/bitnami/prebuildfs/usr/sbin/install_packages text eol=lf
-/docker_chaM3Leon/bitnami/prebuildfs/usr/sbin/run-script text eol=lf
+/bitnami/prebuildfs/usr/sbin/install_packages text eol=lf
+/bitnami/prebuildfs/usr/sbin/run-script text eol=lf
