@@ -1,33 +1,39 @@
 services:
   namenode:
     image: apache/hadoop:3.3.6
-    build: .
+    build:
+      context: ./hadoop_image
+      dockerfile: Dockerfile
     hostname: namenode
     command: ["hdfs", "namenode"]
     ports:
       - 9870:9870
     env_file:
-      - ./hadoop.env
+      - ./hadoop_image/hadoop.env
     environment:
-      ENSURE_NAMENODE_DIR: "/hadoop/dfs/name"
+      ENSURE_NAMENODE_DIR: "/opt/hadoop/dfs/name"
     volumes:
-      - hadoop_namenode:/hadoop/dfs/name
+      - hadoop_namenode:/opt/hadoop/dfs/name
       - ./spark_jars:/opt/hadoop/dfs/spark/jars
 
   datanode:
     image: apache/hadoop:3.3.6
-    build: .
+    build:
+      context: ./hadoop_image
+      dockerfile: Dockerfile
     command: ["hdfs", "datanode"]
     env_file:
-      - ./hadoop.env    
+      - ./hadoop_image/hadoop.env    
     depends_on:
       - namenode
     volumes:
-      - hadoop_datanode:/hadoop/dfs/data
+      - hadoop_datanode:/opt/hadoop/dfs/data
 
   resourcemanager:
     image: apache/hadoop:3.3.6
-    build: .
+    build:
+      context: ./hadoop_image
+      dockerfile: Dockerfile
     hostname: resourcemanager
     command: ["yarn", "resourcemanager"]
     ports:
@@ -36,22 +42,26 @@ services:
       - namenode
       - datanode
     env_file:
-      - ./hadoop.env
+      - ./hadoop_image/hadoop.env
 
   nodemanager:
     image: apache/hadoop:3.3.6
-    build: .
+    build:
+      context: ./hadoop_image
+      dockerfile: Dockerfile
     command: ["yarn", "nodemanager"]
+    ports:
+      - 8042:8042
     depends_on:
       - namenode
       - datanode
       - resourcemanager
     env_file:
-      - ./hadoop.env
+      - ./hadoop_image/hadoop.env
 
   spark-master:
     build:
-      dockerfile: ./bitnami/Dockerfile
+      dockerfile: ./spark_image/Dockerfile
     environment:
       - SPARK_MODE=master
       - SPARK_USER=spark
@@ -116,6 +126,30 @@ services:
     environment:
       - CASSANDRA_CLUSTER_NAME=MyCluster
 
+  prometheus:
+    image: prom/prometheus
+    hostname: prometheus1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+
 volumes:
   hadoop_namenode:
   hadoop_datanode:
@@ -123,3 +157,4 @@ volumes:
   kafka1_data:
   zookeeper1_data:
   zookeeper1_datalog:
+  grafana-storage:

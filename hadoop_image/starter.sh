@@ -96,9 +96,6 @@ if [ -n "$KERBEROS_ENABLED" ]; then
     sed "s/SERVER/$KERBEROS_SERVER/g" "$DIR"/krb5.conf | sudo tee /etc/krb5.conf
 fi
 
-#To avoid docker volume permission problems
-#sudo chmod o+rwx /data
-
 "$DIR"/envtoconf.py --destination "${HADOOP_CONF_DIR:-/opt/hadoop/etc/hadoop}"
 
 if [ -n "$ENSURE_NAMENODE_DIR" ]; then

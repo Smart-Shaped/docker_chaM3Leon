@@ -35,4 +35,6 @@ RUN apt update -y && \
 COPY hadoop_requirements.txt hadoop_requirements.txt
 RUN pip3 install -r hadoop_requirements.txt
 
+WORKDIR /opt/hadoop
+
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--", "/opt/starter.sh"]
