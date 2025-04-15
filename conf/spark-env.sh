@@ -78,4 +78,3 @@ export SPARK_DAEMON_MEMORY=1g
 # - OPENBLAS_NUM_THREADS=1   Disable multi-threading of OpenBLAS
 
 OPENBLAS_NUM_THREADS=1
-LD_PRELOAD=/opt/bitnami/common/lib/libnss_wrapper.so
