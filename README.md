@@ -1,141 +1,190 @@
-# How to Run a Spark Application on YARN and View Logs
+# chaM3Leon
 
-## 1. Environment Preparation
+A modular and scalable framework designed to support machine learning applications - emphasising transparency, interoperability, and usability. It implements a custom lambda architecture, and additional components designed to tackle the limitation of the Speed-Batch coupling for data ingestion and processing.
 
-### 1.1 Navigate to the `docker_chaM3Leon` Directory
-   - Move into the project directory:  
-     ```bash
-     cd docker_chaM3Leon
-     ```
+The chaM3Leon architecture is illustrated in the following Component Diagram, highlighting the connections between layers through provided and required interfaces.
 
-### 1.2 Create Required Directories
-   - Create the following directories inside `docker_chaM3Leon`:  
-     ```bash
-     mkdir jars hadoop spark_jars
-     ```
+![chaM3Leon architecture](docs/chaM3LeonCD.png)
 
-### 1.3 Set Permissions for the `docker_chaM3Leon` Directory
-   - Ensure that `docker_chaM3Leon` and its subdirectories have the correct permissions:  
-     ```bash
-     chmod -R 777 .
-     ```
+As of now, we have released three layers (Batch Layer, Speed Layer, and ML Layer). You can refer to our [roadmap](#roadmap) to see the planned release dates for other components.
 
----
+To implement your own version of any abstract layer you have to:
 
-## 2. Configure and Start the System
+- Build the project running at the level of the chaM3Leon pom.xml the following command:
+```bash
+mvn clean install
+```
+- Generate a Maven project and add chaM3Leon as dependency on your maven pom.xml as below: 
 
-### 2.1 Build the Docker Environment
-   - Run the following command to build the containers:  
-     ```bash
-     docker compose build
-     ```
+```bash
+<dependency>
+	<groupId>com.smartshaped</groupId>
+	<artifactId>chameleon</artifactId>
+	<version>0.0.1</version>
+</dependency>
+```
+- Add the maven-shade-plugin to generate a shaded jar in order to submit your layer implementation as a Spark application (keep in mind the framework is based on Java 11)
 
-### 2.2 Start the Docker Containers
-   - Launch the environment in detached mode:  
-     ```bash
-     docker compose up -d
-     ```
+```bash
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-shade-plugin</artifactId>
+			<version>3.6.0</version>
+			<executions>
+				<execution>
+					<phase>package</phase>
+					<goals>
+						<goal>shade</goal>
+					</goals>
+					<configuration>
+						<filters>
+							<filter>
+								<artifact>*:*</artifact>
+								<excludes>
+									<exclude>META-INF/*.SF</exclude>
+									<exclude>META-INF/*.DSA</exclude>
+									<exclude>META-INF/*.RSA</exclude>
+								</excludes>
+							</filter>
+						</filters>
+						<transformers>
+							<transformer
+									implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+									<resource>
+										META-INF/services/org.apache.spark.sql.sources.DataSourceRegister
+									</resource>
+							</transformer>
+						</transformers>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
+	</plugins>
+</build>
+```
 
----
+After this, you can choose to extend any of the following layers:
 
-## 3. Additional Configurations
+- [Batch Layer](#batch-layer-documentation)
+- [Speed Layer](#speed-layer-documentation)
+- [ML Layer](#ml-layer-documentation)
 
-### 3.1 Copy the Application JAR
-   - Place the application `.jar` file in the `docker_chaM3Leon/jars` directory.
+# Batch Layer Documentation
 
-### 3.2 Copy Hadoop Configuration Files
-   - Extract the Hadoop configurations from the NameNode container and save them locally in the `hadoop` directory:  
-     ```bash
-     docker cp docker_cham3leon-namenode-1:/opt/hadoop/etc/hadoop/. ./hadoop
-     ```
+## How to Develop a Batch Application
 
-### 3.3 Copy Spark JAR Files
-   - Copy Spark JAR files from the Spark Master container to the `spark_jars` directory:  
-     ```bash
-     docker cp docker_cham3leon-spark-master-1:/opt/bitnami/spark/jars/. ./spark_jars
-     ```
+To develop a batch application using the Batch Layer, follow these steps:
 
-### 3.4 Restart the Docker Containers
-   - Restart the Docker environment to apply changes:  
-     ```bash
-     docker compose restart
-     ```
+### 1. Create a Class that Extends `com.smartshaped.chameleon.batch.BatchLayer`
+- Ensure that the class constructor is **public**.
 
----
+### 2. Create one or more Classes that Extend `com.smartshaped.chameleon.preprocessing.Preprocessor`
+- Declare this class in the YAML file along with the kafka topics configurations (batch.kafka.topics.<topic_name>.class).
+- Override the `preprocess` method to add custom preprocessing for the incoming streaming data.
+- You can define a Preprocessor for each of the declared kafka topics.
 
-## 4. Configure HDFS for Spark
+### 3. Create a Class that Extends `com.smartshaped.chameleon.batch.BatchUpdater`
+- Ensure that the class constructor is **public**.
+- This is an optional step, create this class if you want to export some analysis/statisctics from your data.
+- Declare this class in the YAML file (batch.updater.class).
+- Override the `updateBatch` method to implement the specific logic (working on Spark Dataframe).
+- It will automatically save results on Cassandra DB.
 
-### 4.1 Create Required Directories in HDFS
-   - From the NameNode terminal, run the following commands:  
-     ```bash
-     hdfs dfs -mkdir -p /user/spark/eventLog
-     hdfs dfs -mkdir /spark
-     hdfs dfs -mkdir /spark/jars
-     hdfs dfs -mkdir /spark/logs
-     hdfs dfs -put /opt/hadoop/dfs/spark/jars/* /spark/jars
-     ```
+### 4. Create a Class that Extends `com.smartshaped.chameleon.common.utils.TableModel`
+- Define the table fields as class attributes.
+- Specify the name of the primary key as a **string**.
+- Create a `typeMapping.yml` file to define the mapping between Java field types and CQL (Cassandra Query Language) types.
+- Declare this class in the YAML file (batch.cassandra.model.class).
 
-### 4.2 Set Permissions and Ownership for Spark
-   - Ensure Spark has the required permissions and ownership:  
-     ```bash
-     hdfs dfs -chmod -R 777 /user/spark/eventLog
-     hdfs dfs -chown -R spark:hadoop /spark
-     hdfs dfs -chmod -R 777 /spark
-     ```
-   - **Temporary Option (for testing):**  
-     ```bash
-     hdfs dfs -chmod -R 777 /
-     hdfs dfs -chown -R spark:hadoop /
-     ```
-
----
-
-## 5. Create Kafka Topics
-   - From the Kafka container terminal, create topics using the following command:  
-     ```bash
-     kafka-topics --create --topic <topic_name> --partitions <num_partitions> --replication-factor <replication_factor> --bootstrap-server kafka1:19092
-     ```
-
----
-
-## 6. Run the Spark Application
-
-### 6.1 Local Mode
-   - Run the application in local mode:  
-     ```bash
-     spark-submit --class <main_class> --master spark://spark-master:7077 ./extra_jars/<application_name>.jar
-     ```
-
-### 6.2 YARN Cluster Mode
-   - Run the application in YARN cluster mode:  
-     ```bash
-     spark-submit --class <main_class> --master yarn --deploy-mode cluster ./extra_jars/<application_name>.jar
-     ```
-
-### 6.3 YARN Client Mode
-   - Run the application in YARN client mode:  
-     ```bash
-     spark-submit --class <main_class> --master yarn --deploy-mode client ./extra_jars/<application_name>.jar
-     ```
+### 5. Create a Class Containing the `main` Method
+- Call the `start` method of `BatchLayer` inside the `main` method.
+- Specify this class in the `spark-submit` command.
 
 ---
 
-## 7. View Logs for Cluster Mode Execution
+# Speed Layer Documentation
 
-### 7.1 Use the `yarn logs` Command
-   - To retrieve the logs of an application:  
-     ```bash
-     yarn logs -applicationId <applicationId> -log_files_pattern stderr
-     ```
+## How to Develop a Speed Application
 
-### 7.2 View Logs in the ResourceManager
-   - Logs are accessible in the following directory:  
-     ```
-     /var/log/hadoop/userlogs/<applicationId>/<containerId>/stderr
-     ```
+To develop a batch application using the Speed Layer, follow these steps:
 
-### 7.3 Download Logs Locally
-   - Copy the logs from the Hadoop container to the local machine:  
-     ```bash
-     docker cp <container_id>:/var/log/hadoop/userlogs/<applicationId>/<containerId>/stderr ./local_dir
-     ```
+### 1. Create a Class that Extends `com.smartshaped.chameleon.speed.SpeedLayer`
+- Ensure that the class constructor is **public**.
+
+### 2. Create a Class that Extends `com.smartshaped.chameleon.speed.SpeedUpdater`
+- Ensure that the class constructor is **public**.
+- This class permits you to export some partial analysis/statisctics from your streaming data arrived during a window time.
+- Declare this class in the YAML file (speed.updater.class).
+- Override the `updateSpeed` method to implement the specific logic (working on Spark Dataframe).
+- It will automatically save results on Cassandra DB.
+
+### 3. Create a Class that Extends `com.smartshaped.chameleon.common.utils.TableModel`
+- Define the table fields as class attributes.
+- Specify the name of the primary key as a **string**.
+- Create a `typeMapping.yml` file to define the mapping between Java field types and CQL (Cassandra Query Language) types.
+- Declare this class in the YAML file (speed.cassandra.model.class).
+
+### 4. Create a Class Containing the `main` Method
+- Call the `start` method of `SpeedLayer` inside the `main` method.
+- Specify this class in the `spark-submit` command.
+
+---
+
+# ML Layer Documentation
+
+## How to Develop an ML Application
+
+To develop a machine learning application using the ML Layer, follow these steps:
+
+### 1. Create a Class that Extends `com.smartshaped.chameleon.ml.MLLayer`
+- Ensure that the class constructor is **public**.
+
+### 2. Create at Least One Class that Extends `com.smartshaped.chameleon.ml.HdfsReader`
+- Ensure that the class constructor is **public**.
+- Declare this class in the YAML file along with the HDFS path from which the data will be read.
+- Optionally, override the `processRawData` method to add custom processing for the raw data.
+
+### 3. Create a Class that Extends `com.smartshaped.chameleon.ml.Pipeline`
+- Declare this class in the YAML file.
+- Override the `start` method to implement the specific machine learning logic. 
+  - Ensure that the `setModel` and `setPredictions` methods are called at the end of the pipeline.
+
+### 4. Create a Class that Extends `com.smartshaped.chameleon.ml.ModelSaver`
+- Ensure that the class constructor is **public**.
+- Declare this class in the YAML file.
+
+### 5. Create a Class that Extends `com.smartshaped.chameleon.common.utils.TableModel`
+- Define the table fields as class attributes.
+- Specify the name of the primary key as a **string**.
+- Create a `typeMapping.yml` file to define the mapping between Java field types and CQL (Cassandra Query Language) types.
+- Declare this class in the YAML file.
+
+### 6. Create a Class Containing the `main` Method
+- Call the `start` method of `MLLayer` inside the `main` method.
+- Specify this class in the `spark-submit` command.
+
+---
+
+# Execution Instructions
+
+To generate the `.jar` file, run the following command from your project directory:
+
+```bash
+mvn clean install
+```
+
+Then go to our [Docker repository](https://github.com/Smart-Shaped/docker_chaM3Leon) and follow the [Docker documentation](https://github.com/Smart-Shaped/docker_chaM3Leon/blob/public/README.md)
+
+---
+
+# Roadmap
+
+- Harvester (JAN 2025)
+
+- API Gateway (MAR 2025)
+
+- Serving Layer (Q2 2025)
+
+- Workflow Designer (To be determined, probably Q3 2025)
