@@ -1,6 +1,6 @@
 services:
   namenode:
-    image: leonardodavinci03/hadoop
+    image: ghcr.io/smart-shaped/cham3leon-hadoop
     hostname: namenode
     command: ["hdfs", "namenode"]
     ports:
@@ -14,7 +14,7 @@ services:
       - hadoop_namenode:/opt/hadoop/dfs/name
       - ./spark_jars:/opt/hadoop/dfs/spark/jars
   datanode:
-    image: leonardodavinci03/hadoop
+    image: ghcr.io/smart-shaped/cham3leon-hadoop
     command: ["hdfs", "datanode"]
     env_file:
       - ./hadoop_image/hadoop.env
@@ -26,7 +26,7 @@ services:
       - hadoop_datanode:/opt/hadoop/dfs/data
 
   resourcemanager:
-    image: leonardodavinci03/hadoop
+    image: ghcr.io/smart-shaped/cham3leon-hadoop
     hostname: resourcemanager
     command: ["yarn", "resourcemanager"]
     ports:
@@ -40,7 +40,7 @@ services:
       HADOOP_HOME: "/opt/hadoop"
 
   nodemanager:
-    image: leonardodavinci03/hadoop
+    image: ghcr.io/smart-shaped/cham3leon-hadoop
     command: ["yarn", "nodemanager"]
     ports:
       - 8042:8042
@@ -54,7 +54,7 @@ services:
       HADOOP_HOME: "/opt/hadoop"
 
   spark-master:
-    image: leonardodavinci03/spark-master
+    image: ghcr.io/smart-shaped/cham3leon-spark
     hostname: spark-master
     ports:
       - "4040:4040"
@@ -76,7 +76,7 @@ services:
       - ./hadoop:/opt/hadoop
 
   spark-connect:
-    image: leonardodavinci03/spark-master
+    image: ghcr.io/smart-shaped/cham3leon-spark
     hostname: spark-connect
     ports:
       - "15002:15002"
@@ -90,7 +90,7 @@ services:
       - ./spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
 
   spark-worker:
-    image: leonardodavinci03/spark-master
+    image: ghcr.io/smart-shaped/cham3leon-spark
     hostname: spark-worker
     depends_on:
       - spark-master
